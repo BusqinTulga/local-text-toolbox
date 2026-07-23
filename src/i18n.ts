@@ -253,6 +253,8 @@ function initialLang(): Lang {
 }
 
 const lang = ref<Lang>(initialLang())
+// 初次加载也要同步 html 的 lang 属性，否则 CSS 的 :lang() 按语言收窄规则在刷新后不生效
+document.documentElement.lang = lang.value
 
 export function useI18n() {
   const t = computed(() => (key: MessageKey) => messages[lang.value][key])

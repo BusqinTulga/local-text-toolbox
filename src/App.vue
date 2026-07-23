@@ -230,6 +230,16 @@ h1 {
   opacity: 0.7;
 }
 
+/* 英语/日语的页签文字和标题都更长，164px 固定宽会把右侧语言栏挤到换行，
+   按语言收窄页签宽度 */
+:lang(en) .tabs button {
+  min-width: 120px;
+}
+
+:lang(ja) .tabs button {
+  min-width: 140px;
+}
+
 /* 语言切换：纯文字，激活加下划线 */
 /* 允许换行 + min-width:0：窄视口（浏览器放大后）按钮排不下时折行，
    而不是撑破页面出横向滚动条（Safari 字宽略大于 Chrome，先在 Safari 上暴露） */
