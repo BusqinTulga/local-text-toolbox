@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from '../i18n'
 import { b64encode, b64decode, type B64Code } from '../lib/base64'
 
@@ -27,13 +27,24 @@ watch([input, dir, urlSafe], () => (copied.value = false))
 // 输入框随内容自动增高（与格式化工具同一套处理）
 function autoresize() {
   const el = inputEl.value
-  if (!el) return
+  // 工具页用 v-show 切换，隐藏（display:none）状态下 scrollHeight 是 0，
+  // 量出来会把高度锁死成 2px——跳过，等可见时由 ResizeObserver 补量
+  if (!el || el.offsetParent === null) return
   el.style.height = 'auto'
   el.style.height = `${el.scrollHeight + 2}px`
 }
 
 watch(input, () => nextTick(autoresize))
-onMounted(autoresize)
+// 挂载时可能处于隐藏页；元素从隐藏变可见（尺寸 0 → 实际值）时观察器会触发，补量高度
+let ro: ResizeObserver | undefined
+onMounted(() => {
+  autoresize()
+  if (inputEl.value) {
+    ro = new ResizeObserver(autoresize)
+    ro.observe(inputEl.value)
+  }
+})
+onUnmounted(() => ro?.disconnect())
 
 async function copy() {
   if (!output.value) return
