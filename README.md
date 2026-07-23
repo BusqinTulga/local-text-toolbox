@@ -29,6 +29,10 @@ A small, privacy-first browser toolbox for everyday text work — diffing, forma
 - 支持 URL 安全（使用 `-`/`_` 字符集）编码。
 - 解码结果如果不是合法的 UTF-8，会给出警告提示，非法字节会显示为 `�`。
 
+**二维码**
+- 把 URL 或文本生成二维码，手机扫一扫即可打开。
+- 支持下载 PNG，生成过程同样全部在浏览器内完成。
+
 **多语言界面**
 - 支持中文 / English / 日本語 共3种语言。
 - 首次打开时会根据浏览器语言自动选择，之后可随时手动切换（选择会保存在本地）。
@@ -52,6 +56,7 @@ npm run preview   # 本地预览生产构建
 - [Vite](https://vitejs.dev/) 负责开发服务器与构建
 - [`diff`](https://www.npmjs.com/package/diff) 用于计算文本差异
 - [`yaml`](https://www.npmjs.com/package/yaml) 用于 YAML 的解析与序列化
+- [`qrcode`](https://www.npmjs.com/package/qrcode) 用于生成二维码
 - JSON / XML 使用自研的容错解析器（`src/lib/jsonTolerant.ts`、`src/lib/xmlTolerant.ts`）
 
 ### 目录结构（节选）
@@ -65,7 +70,8 @@ src/
 │   ├── DiffView.vue        # 差异展示（并排/内联、单词/字符级）
 │   ├── FormatTool.vue      # JSON/XML/YAML 格式化界面
 │   ├── FoldView.vue        # 格式化结果的折叠展示
-│   └── Base64Tool.vue      # Base64 编码/解码界面
+│   ├── Base64Tool.vue      # Base64 编码/解码界面
+│   └── QrTool.vue          # 二维码生成界面
 └── lib/
     ├── diffEngine.ts       # 差异计算逻辑
     ├── formatters.ts       # 格式识别、格式化、压缩
@@ -99,6 +105,10 @@ Local Text Toolbox is a small collection of everyday text utilities — diff, fo
 - URL-safe encoding (`-`/`_` alphabet) is supported.
 - On decode, invalid UTF-8 output is flagged with a warning and bad bytes are rendered as `�`.
 
+**QR code**
+- Generate a QR code from a URL or text and scan it with your phone to open the link instantly.
+- Downloadable as PNG. Generation happens entirely in the browser.
+
 **Multilingual UI**
 - Three languages: 中文 / English / 日本語.
 - Auto-detected from the browser on first visit, switchable any time afterward (the choice is remembered locally).
@@ -122,6 +132,7 @@ npm run preview   # preview the production build locally
 - [Vite](https://vitejs.dev/) for dev server / build
 - [`diff`](https://www.npmjs.com/package/diff) for computing text differences
 - [`yaml`](https://www.npmjs.com/package/yaml) for YAML parsing/serialization
+- [`qrcode`](https://www.npmjs.com/package/qrcode) for QR code generation
 - Custom tolerant parsers for JSON/XML (`src/lib/jsonTolerant.ts`, `src/lib/xmlTolerant.ts`)
 
 ### Project Structure (excerpt)
@@ -135,7 +146,8 @@ src/
 │   ├── DiffView.vue        # diff rendering (side/inline, word/char)
 │   ├── FormatTool.vue      # JSON/XML/YAML formatter UI
 │   ├── FoldView.vue        # collapsible view of formatted output
-│   └── Base64Tool.vue      # Base64 encode/decode UI
+│   ├── Base64Tool.vue      # Base64 encode/decode UI
+│   └── QrTool.vue          # QR code generator UI
 └── lib/
     ├── diffEngine.ts       # diff computation
     ├── formatters.ts       # format detection, formatting, minify
@@ -169,6 +181,10 @@ src/
 - URL セーフ（`-`/`_` を使う形式）でのエンコードにも対応。
 - デコード時、結果が UTF-8 として不正な場合は警告を表示し、不正なバイトは `�` として可視化します。
 
+**QRコード**
+- URL やテキストから QRコードを生成。スマホのカメラでスキャンすればすぐ開けます。
+- PNG としてダウンロード可能。生成もブラウザ内で完結します。
+
 **多言語 UI**
 - 中文 / English / 日本語 の3言語に対応。
 - 初回アクセス時はブラウザの言語設定から自動判定し、以降はいつでも手動で切り替え可能（選択内容はローカルに保存されます）。
@@ -192,6 +208,7 @@ npm run preview   # ビルド結果をローカルでプレビュー
 - [Vite](https://vitejs.dev/) — 開発サーバー / ビルド
 - [`diff`](https://www.npmjs.com/package/diff) — テキスト差分計算
 - [`yaml`](https://www.npmjs.com/package/yaml) — YAML パース／出力
+- [`qrcode`](https://www.npmjs.com/package/qrcode) — QRコード生成
 - JSON / XML は独自の寛容パーサー（`src/lib/jsonTolerant.ts`, `src/lib/xmlTolerant.ts`）を実装
 
 ### ディレクトリ構成（抜粋）
@@ -205,7 +222,8 @@ src/
 │   ├── DiffView.vue        # 差分表示（Side/Inline、Word/Char）
 │   ├── FormatTool.vue      # JSON/XML/YAML 整形UI
 │   ├── FoldView.vue        # 整形結果の折りたたみ表示
-│   └── Base64Tool.vue      # Base64 エンコード/デコードUI
+│   ├── Base64Tool.vue      # Base64 エンコード/デコードUI
+│   └── QrTool.vue          # QRコード生成UI
 └── lib/
     ├── diffEngine.ts       # 差分計算ロジック
     ├── formatters.ts       # フォーマット判別・整形・minify

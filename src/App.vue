@@ -4,14 +4,15 @@ import TextInputs from './components/TextInputs.vue'
 import DiffView from './components/DiffView.vue'
 import FormatTool from './components/FormatTool.vue'
 import Base64Tool from './components/Base64Tool.vue'
+import QrTool from './components/QrTool.vue'
 import { computeDiff, type DiffResult } from './lib/diffEngine'
 import { useI18n, type Lang } from './i18n'
 
 const { lang, setLang, t } = useI18n()
 
-type Tool = 'diff' | 'fmt' | 'b64'
+type Tool = 'diff' | 'fmt' | 'b64' | 'qr'
 
-const TOOL_PATHS: Record<Tool, string> = { diff: '/diff', fmt: '/format', b64: '/base64' }
+const TOOL_PATHS: Record<Tool, string> = { diff: '/diff', fmt: '/format', b64: '/base64', qr: '/qr' }
 
 function toolFromPath(path: string): Tool {
   const entry = Object.entries(TOOL_PATHS).find(([, p]) => p === path)
@@ -85,6 +86,9 @@ const langs: { value: Lang; label: string }[] = [
         <button :class="{ active: tool === 'b64' }" @click="tool = 'b64'">
           <span class="tab-num">03</span>{{ t('tabBase64') }}
         </button>
+        <button :class="{ active: tool === 'qr' }" @click="tool = 'qr'">
+          <span class="tab-num">04</span>{{ t('tabQr') }}
+        </button>
       </nav>
 
       <div class="lang" role="group" aria-label="Language">
@@ -127,6 +131,7 @@ const langs: { value: Lang; label: string }[] = [
       </div>
       <FormatTool v-show="tool === 'fmt'" />
       <Base64Tool v-show="tool === 'b64'" />
+      <QrTool v-show="tool === 'qr'" />
     </main>
 
     <footer class="privacy micro-label">{{ t('privacy') }}</footer>
