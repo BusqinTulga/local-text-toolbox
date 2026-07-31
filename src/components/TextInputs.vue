@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from '../i18n'
+import { useFileDrop } from '../lib/useFileDrop'
 
 const oldText = defineModel<string>('oldText', { required: true })
 const newText = defineModel<string>('newText', { required: true })
 
 const { t } = useI18n()
+
+const dropA = useFileDrop((text) => (oldText.value = text))
+const dropB = useFileDrop((text) => (newText.value = text))
 
 // 两个输入框高度联动：拖动任意一个，另一个跟着变
 const taA = ref<HTMLTextAreaElement | null>(null)
@@ -36,13 +40,22 @@ function swap() {
 <template>
   <section class="inputs">
     <div class="pane">
-      <label class="pane-label micro-label" for="old-text">{{ t('original') }}</label>
+      <div class="pane-head">
+        <label class="pane-label micro-label" for="old-text">{{ t('original') }}</label>
+        <span v-if="dropA.error.value" class="drop-err micro-label">
+          ⚠ {{ t(dropA.error.value) }}
+        </span>
+      </div>
       <textarea
         id="old-text"
         ref="taA"
         v-model="oldText"
         :placeholder="t('placeholderOld')"
         spellcheck="false"
+        :class="{ dropping: dropA.dragging.value }"
+        @dragover="dropA.onDragover"
+        @dragleave="dropA.onDragleave"
+        @drop="dropA.onDrop"
       ></textarea>
     </div>
 
@@ -51,13 +64,22 @@ function swap() {
     </div>
 
     <div class="pane">
-      <label class="pane-label micro-label" for="new-text">{{ t('modified') }}</label>
+      <div class="pane-head">
+        <label class="pane-label micro-label" for="new-text">{{ t('modified') }}</label>
+        <span v-if="dropB.error.value" class="drop-err micro-label">
+          ⚠ {{ t(dropB.error.value) }}
+        </span>
+      </div>
       <textarea
         id="new-text"
         ref="taB"
         v-model="newText"
         :placeholder="t('placeholderNew')"
         spellcheck="false"
+        :class="{ dropping: dropB.dragging.value }"
+        @dragover="dropB.onDragover"
+        @dragleave="dropB.onDragleave"
+        @drop="dropB.onDrop"
       ></textarea>
     </div>
   </section>
@@ -77,14 +99,24 @@ function swap() {
   min-width: 0;
 }
 
+.pane-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .pane-label {
   margin-bottom: 8px;
+}
+
+.drop-err {
+  color: var(--del-fg);
 }
 
 textarea {
   height: 190px;
   min-height: 120px;
-  max-height: 70vh;
   resize: vertical;
   padding: 14px 16px;
   border: 1px solid var(--border);
@@ -113,11 +145,18 @@ textarea:focus {
   border-color: var(--border-strong);
 }
 
+textarea.dropping {
+  border-style: dashed;
+  border-color: var(--ink);
+}
+
+/* 按钮置顶：内容一长（输入框被拉高）时置底就找不到了。
+   padding-top 对齐 textarea 顶缘（pane-head 标签行的高度） */
 .middle {
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  padding-bottom: 8px;
+  justify-content: flex-start;
+  padding-top: 26px;
   gap: 8px;
 }
 

@@ -77,18 +77,28 @@ class Parser {
     this.issues.push({ code, pos, line, col })
   }
 
+  // 行起始偏移表只建一次，之后二分定位——否则每个 issue 都从头扫全文，
+  // 大文件 + 问题多时这一步本身就能卡死页面
+  private lineStarts: number[] | null = null
+
   private lineCol(pos: number): { line: number; col: number } {
-    let line = 1
-    let col = 1
-    for (let k = 0; k < pos && k < this.text.length; k++) {
-      if (this.text[k] === '\n') {
-        line++
-        col = 1
-      } else {
-        col++
+    if (!this.lineStarts) {
+      const starts = [0]
+      for (let k = 0; k < this.text.length; k++) {
+        if (this.text[k] === '\n') starts.push(k + 1)
       }
+      this.lineStarts = starts
     }
-    return { line, col }
+    const s = this.lineStarts
+    const p = Math.min(pos, this.text.length)
+    let lo = 0
+    let hi = s.length - 1
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1
+      if (s[mid] <= p) lo = mid
+      else hi = mid - 1
+    }
+    return { line: lo + 1, col: p - s[lo] + 1 }
   }
 
   private skipWs() {

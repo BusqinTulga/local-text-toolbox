@@ -2,39 +2,83 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from '../i18n'
 import { b64encode, b64decode, type B64Code } from '../lib/base64'
+import { useFileDrop } from '../lib/useFileDrop'
+import { MAX_OUT_CHARS, HUGE_TEXT_CHARS } from '../lib/perf'
 
 const { t } = useI18n()
 
 const dir = ref<'enc' | 'dec'>('dec')
 const urlSafe = ref(false)
 const input = ref('')
+const drop = useFileDrop((text) => (input.value = text))
 const copied = ref(false)
+const working = ref(false)
 
 const inputEl = ref<HTMLTextAreaElement | null>(null)
 
-const result = computed<{ text: string; warnings: B64Code[]; fatal?: B64Code }>(() => {
-  if (input.value === '') return { text: '', warnings: [] }
-  if (dir.value === 'enc') {
-    return { text: b64encode(input.value, urlSafe.value), warnings: [] }
-  }
-  return b64decode(input.value)
+// 编解码本身是 O(n)，但 2MB 级输入每次按键都全量算一遍就太浪费——加防抖
+const result = ref<{ text: string; warnings: B64Code[]; fatal?: B64Code }>({
+  text: '',
+  warnings: [],
 })
+const showFull = ref(false)
+
+let calcTimer: ReturnType<typeof setTimeout> | undefined
+watch(
+  [input, dir, urlSafe],
+  () => {
+    copied.value = false
+    showFull.value = false
+    working.value = input.value !== ''
+    clearTimeout(calcTimer)
+    calcTimer = setTimeout(() => {
+      if (input.value === '') {
+        result.value = { text: '', warnings: [] }
+      } else if (dir.value === 'enc') {
+        result.value = { text: b64encode(input.value, urlSafe.value), warnings: [] }
+      } else {
+        result.value = b64decode(input.value)
+      }
+      working.value = false
+    }, 200)
+  },
+  { immediate: true },
+)
 
 const output = computed(() => (result.value.fatal ? '' : result.value.text))
 
-watch([input, dir, urlSafe], () => (copied.value = false))
+// 超长结果只渲染前段：几 MB 的单个文本节点每次重排都以百 ms 计；复制仍是完整内容
+const truncated = computed(() => !showFull.value && output.value.length > MAX_OUT_CHARS)
+const displayOutput = computed(() =>
+  truncated.value ? output.value.slice(0, MAX_OUT_CHARS) + '…' : output.value,
+)
 
-// 输入框随内容自动增高（与格式化工具同一套处理）
+// 输入框随内容自动增高（与格式化工具同一套处理）。
+// 测一次 scrollHeight 就是一次全量 reflow，超大内容改为防抖测量：打字期间不测，停顿后再校准
+let resizeTimer: ReturnType<typeof setTimeout> | undefined
+
+function measureHeight(el: HTMLTextAreaElement) {
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight + 2}px`
+}
+
 function autoresize() {
   const el = inputEl.value
   // 工具页用 v-show 切换，隐藏（display:none）状态下 scrollHeight 是 0，
   // 量出来会把高度锁死成 2px——跳过，等可见时由 ResizeObserver 补量
   if (!el || el.offsetParent === null) return
-  el.style.height = 'auto'
-  el.style.height = `${el.scrollHeight + 2}px`
+  clearTimeout(resizeTimer)
+  if (el.value.length > HUGE_TEXT_CHARS) {
+    resizeTimer = setTimeout(() => measureHeight(el), 250)
+  } else {
+    measureHeight(el)
+  }
 }
 
 watch(input, () => nextTick(autoresize))
+// 输入删空时 autoresize 先于结果清空执行（计算有防抖），此刻右侧还被旧的超长输出撑着，
+// min-height:100% 会把旧巨高原样量回来；结果落地后再补量一次，高度才能回落
+watch(result, () => nextTick(autoresize))
 // 挂载时可能处于隐藏页；元素从隐藏变可见（尺寸 0 → 实际值）时观察器会触发，补量高度
 let ro: ResizeObserver | undefined
 onMounted(() => {
@@ -44,7 +88,10 @@ onMounted(() => {
     ro.observe(inputEl.value)
   }
 })
-onUnmounted(() => ro?.disconnect())
+onUnmounted(() => {
+  ro?.disconnect()
+  clearTimeout(resizeTimer)
+})
 
 async function copy() {
   if (!output.value) return
@@ -94,7 +141,12 @@ async function copy() {
 
     <div class="panes">
       <div class="pane">
-        <label class="pane-label micro-label" for="b64-input">{{ t('fmtInput') }}</label>
+        <div class="pane-head">
+          <label class="pane-label micro-label" for="b64-input">{{ t('fmtInput') }}</label>
+          <span v-if="drop.error.value" class="drop-err micro-label">
+            ⚠ {{ t(drop.error.value) }}
+          </span>
+        </div>
         <div class="input-wrap">
           <textarea
             id="b64-input"
@@ -102,12 +154,22 @@ async function copy() {
             v-model="input"
             :placeholder="dir === 'enc' ? t('b64PhEnc') : t('b64PhDec')"
             spellcheck="false"
+            :class="{ dropping: drop.dragging.value }"
+            @dragover="drop.onDragover"
+            @dragleave="drop.onDragleave"
+            @drop="drop.onDrop"
           ></textarea>
         </div>
       </div>
 
       <div class="pane">
-        <label class="pane-label micro-label">{{ t('b64Output') }}</label>
+        <div class="pane-head">
+          <label class="pane-label micro-label">{{ t('b64Output') }}</label>
+        </div>
+
+        <div class="out-body">
+        <!-- 处理中提示：钉在与空状态提示相同的位置（默认高度框的居中处），与格式化工具同款 -->
+        <div v-if="working" class="working-top"><span>{{ t('processing') }}</span></div>
 
         <div v-if="result.fatal" class="result error-box">
           <div class="error-title">⚠ {{ t('b64Error') }}</div>
@@ -118,9 +180,19 @@ async function copy() {
           <div v-if="result.warnings.length" class="issues">
             <div class="issues-title">⚠ {{ t(result.warnings[0]) }}</div>
           </div>
-          <pre v-if="output" class="result out">{{ output }}</pre>
-          <div v-else class="result hint">{{ t('b64EmptyHint') }}</div>
+          <div v-if="truncated" class="issues trunc">
+            <div class="issues-title">⚠ {{ t('outTruncated') }}</div>
+            <button type="button" class="show-all" @click="showFull = true">
+              {{ t('showAll') }}
+            </button>
+          </div>
+          <pre v-if="output" class="result out">{{ displayOutput }}</pre>
+          <div v-else class="result hint">
+            <!-- 处理中时藏住提示文字，两段文字在同一位置会叠在一起 -->
+            <div v-show="!working" class="hint-pin">{{ t('b64EmptyHint') }}</div>
+          </div>
         </template>
+        </div>
       </div>
     </div>
   </section>
@@ -251,8 +323,80 @@ async function copy() {
   min-width: 0;
 }
 
+.pane-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
 .pane-label {
   margin-bottom: 8px;
+}
+
+.drop-err {
+  margin-left: auto;
+  color: var(--del-fg);
+}
+
+/* 输出区包一层相对定位容器，处理中提示才能贴着输出框顶部盖上去 */
+.out-body {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* 与 .hint-pin 钉在同一位置：hint-pin 在 14px padding 之内，这里在 out-body
+   顶上，高度补上 28px 差值后两者的居中点重合 */
+.working-top {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  right: 1px;
+  height: min(100%, max(240px, calc(100vh - 259px)));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.working-top span {
+  padding: 6px 20px;
+  font-size: 15px;
+  color: var(--fg-muted);
+  background: color-mix(in srgb, var(--bg-panel) 85%, transparent);
+  animation: breathe 1s ease-in-out infinite alternate;
+}
+
+@keyframes breathe {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.issues.trunc {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.show-all {
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-panel);
+  color: var(--fg-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.show-all:hover {
+  color: var(--fg);
 }
 
 textarea,
@@ -295,6 +439,11 @@ textarea:focus {
   border-color: var(--border-strong);
 }
 
+textarea.dropping {
+  border-style: dashed;
+  border-color: var(--ink);
+}
+
 .out {
   white-space: pre-wrap;
   overflow-wrap: break-word;
@@ -303,12 +452,19 @@ textarea:focus {
 }
 
 .hint {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   color: var(--fg-faint);
   font-family: inherit;
   font-size: 13px;
+}
+
+/* 提示文字钉在「默认高度输出框的垂直居中处」，框被超长输入撑高时不跟着往下跑。
+   页面固定部分 259px + 框自身 padding 28px → 默认框内容高度 = 100vh − 287px；
+   框为默认高度时 min() 取 100%，与原先的整框居中完全一致 */
+.hint-pin {
+  height: min(100%, max(212px, calc(100vh - 287px)));
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .issues {

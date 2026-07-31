@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { Fmt } from '../lib/formatters'
+import { useI18n } from '../i18n'
+import { ROWS_PAGE } from '../lib/perf'
 
 // 基于缩进的通用折叠视图：某行的下一非空行缩进更深即可折叠，
 // 收起后隐藏所有更深缩进的行（含中间空行），对 JSON / XML / YAML 都成立
@@ -37,12 +39,18 @@ const foldEnd = computed(() => {
 // 行号列宽随总行数的位数走
 const linenoWidth = computed(() => `${Math.max(2, String(lines.value.length).length)}.5ch`)
 
+const { t } = useI18n()
+
 const collapsed = ref(new Set<number>())
+
+// 分批渲染：大结果只先渲染一批，避免一次性生成十几万 DOM 节点
+const visibleCount = ref(ROWS_PAGE)
 
 watch(
   () => props.text,
   () => {
     collapsed.value = new Set()
+    visibleCount.value = ROWS_PAGE
   },
 )
 
@@ -173,15 +181,28 @@ function hlXmlTag(s: string, out: Tok[]) {
   pushGap(out, rest, last, rest.length)
 }
 
-const hlLines = computed<Tok[][]>(() => {
+const shownRows = computed(() => {
+  const rows = visibleRows.value
+  return rows.length <= visibleCount.value ? rows : rows.slice(0, visibleCount.value)
+})
+
+const hiddenTail = computed(() => Math.max(0, visibleRows.value.length - visibleCount.value))
+
+// 语法高亮只对当前渲染窗口计算，不再全量 tokenize 屏幕外的行
+const hlShown = computed<Map<number, Tok[]>>(() => {
   const fn = props.fmt === 'xml' ? hlXml : props.fmt === 'yaml' ? hlYaml : props.fmt === 'json' ? hlJson : null
-  return lines.value.map((l) => (fn ? fn(l) : [{ text: l }]))
+  const map = new Map<number, Tok[]>()
+  for (const row of shownRows.value) {
+    const l = lines.value[row.i]
+    map.set(row.i, fn ? fn(l) : [{ text: l }])
+  }
+  return map
 })
 </script>
 
 <template>
   <div class="fold-view">
-    <div v-for="row in visibleRows" :key="row.i" class="fold-line">
+    <div v-for="row in shownRows" :key="row.i" class="fold-line">
       <span class="lineno" :style="{ width: linenoWidth }">{{ row.i + 1 }}</span>
       <button
         v-if="foldEnd[row.i] !== null"
@@ -190,7 +211,7 @@ const hlLines = computed<Tok[][]>(() => {
       >{{ collapsed.has(row.i) ? '▸' : '▾' }}</button>
       <span v-else class="fold-btn placeholder"></span>
       <span class="fold-text"><span
-        v-for="(tk, k) in hlLines[row.i]"
+        v-for="(tk, k) in hlShown.get(row.i)"
         :key="k"
         :class="tk.cls"
       >{{ tk.text }}</span></span>
@@ -200,6 +221,10 @@ const hlLines = computed<Tok[][]>(() => {
         @click="toggle(row.i)"
       >⋯ {{ row.hiddenCount }}</button>
     </div>
+
+    <button v-if="hiddenTail > 0" type="button" class="show-more" @click="visibleCount += ROWS_PAGE">
+      {{ t('showMore').replace('{n}', String(hiddenTail)) }}
+    </button>
   </div>
 </template>
 
@@ -270,6 +295,26 @@ const hlLines = computed<Tok[][]>(() => {
 }
 
 .fold-more:hover {
+  color: var(--fg);
+}
+
+.show-more {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 16px;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: var(--bg-gutter);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.show-more:hover {
   color: var(--fg);
 }
 

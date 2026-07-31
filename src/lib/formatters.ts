@@ -56,8 +56,11 @@ export function detectFormat(text: string): Fmt | null {
   ) {
     return 'yaml'
   }
-  // 裸标量（"abc" / 123 / true）也算 JSON
-  if (/^["']|^-?\d|^(true|false|null)\s*$/.test(t)) return 'json'
+  // 裸标量（"abc" / 123 / true）也算 JSON——必须整个文本就是这一个标量：
+  // 只看开头的话，以时间戳/数字开头的日志、纯文本全会被误判成 JSON
+  if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\s*$/.test(t)) return 'json'
+  if (/^(true|false|null)\s*$/.test(t)) return 'json'
+  if (/^(["'])[\s\S]*\1\s*$/.test(t)) return 'json'
   return null
 }
 

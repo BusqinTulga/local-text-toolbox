@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import type { DiffResult, DiffSide } from '../lib/diffEngine'
 import { useI18n } from '../i18n'
+import { ROWS_PAGE } from '../lib/perf'
 
 const props = defineProps<{
   result: DiffResult | null
@@ -11,11 +12,25 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
+// 分批渲染：大结果一次性渲染 10 万+ DOM 节点会卡死页面，先出一批，按需加载更多
+const visibleCount = ref(ROWS_PAGE)
+const shownRows = computed(() => {
+  const rows = props.result?.rows ?? []
+  return rows.length <= visibleCount.value ? rows : rows.slice(0, visibleCount.value)
+})
+const hiddenCount = computed(() =>
+  Math.max(0, (props.result?.rows.length ?? 0) - visibleCount.value),
+)
+
+function showMore() {
+  visibleCount.value += ROWS_PAGE
+}
+
 // 单栏视图：mod/del 行在前（左侧内容），add/mod 行在后（右侧内容）
 const inlineRows = computed(() => {
   if (!props.result) return []
   const out: { side: DiffSide; from: 'left' | 'right'; rowIndex: number }[] = []
-  props.result.rows.forEach((row, rowIndex) => {
+  shownRows.value.forEach((row, rowIndex) => {
     if (row.left.type === 'same') {
       out.push({ side: row.left, from: 'left', rowIndex })
       return
@@ -50,12 +65,19 @@ const currentHunk = ref(-1)
 
 watch(() => props.result, () => {
   currentHunk.value = -1
+  visibleCount.value = ROWS_PAGE
 })
 
-function jumpHunk(dir: 1 | -1) {
+async function jumpHunk(dir: 1 | -1) {
   const n = hunkStarts.value.length
   if (!n) return
   currentHunk.value = ((currentHunk.value + dir) % n + n) % n
+  // 目标块还没渲染出来时先扩大窗口
+  const targetRow = hunkStarts.value[currentHunk.value]
+  if (targetRow >= visibleCount.value) {
+    visibleCount.value = Math.ceil((targetRow + 1) / ROWS_PAGE) * ROWS_PAGE
+    await nextTick()
+  }
   const el = rootEl.value?.querySelector(`[data-hunk="${currentHunk.value}"]`)
   el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
 }
@@ -98,7 +120,7 @@ function syncScroll(src: 'left' | 'right') {
       <!-- 左右对照 · 文本模式：单个网格，两侧等宽、长行自动换行 -->
       <div v-if="view === 'side' && !codeMode" class="table side-by-side">
         <div
-          v-for="(row, i) in result.rows"
+          v-for="(row, i) in shownRows"
           :key="i"
           class="row"
           :class="{ 'hunk-current': hunkIndexByRow.get(i) === currentHunk }"
@@ -129,7 +151,7 @@ function syncScroll(src: 'left' | 'right') {
       <div v-else-if="view === 'side'" class="table split">
         <div ref="leftPane" class="half" @scroll="syncScroll('left')">
           <div
-            v-for="(row, i) in result.rows"
+            v-for="(row, i) in shownRows"
             :key="i"
             class="row"
             :class="{ 'hunk-current': hunkIndexByRow.get(i) === currentHunk }"
@@ -147,7 +169,7 @@ function syncScroll(src: 'left' | 'right') {
         </div>
         <div ref="rightPane" class="half" @scroll="syncScroll('right')">
           <div
-            v-for="(row, i) in result.rows"
+            v-for="(row, i) in shownRows"
             :key="i"
             class="row"
             :class="{ 'hunk-current': hunkIndexByRow.get(i) === currentHunk }"
@@ -199,6 +221,10 @@ function syncScroll(src: 'left' | 'right') {
           </div>
         </div>
       </div>
+
+      <button v-if="hiddenCount > 0" type="button" class="show-more" @click="showMore">
+        {{ t('showMore').replace('{n}', String(hiddenCount)) }}
+      </button>
     </template>
   </section>
 </template>
@@ -398,6 +424,25 @@ function syncScroll(src: 'left' | 'right') {
 .lineno.empty {
   background: var(--empty-bg);
   background-color: var(--bg-gutter);
+}
+
+.show-more {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: var(--bg-gutter);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.show-more:hover {
+  color: var(--fg);
 }
 
 /* 行内变更片段 */

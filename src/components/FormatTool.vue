@@ -3,18 +3,28 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n, type MessageKey } from '../i18n'
 import {
   detectFormat,
-  formatText,
   supportsMinify,
   FMT_LABEL,
   type Fmt,
   type FormatIssue,
+  type FormatOutput,
   type Indent,
 } from '../lib/formatters'
 import FoldView from './FoldView.vue'
+import { useFileDrop } from '../lib/useFileDrop'
+import { useWorkerTask } from '../lib/useWorkerTask'
+import { LARGE_LINES, HUGE_TEXT_CHARS } from '../lib/perf'
 
 const { t } = useI18n()
 
 const input = ref('')
+const drop = useFileDrop((text) => (input.value = text))
+
+// 解析/序列化跑在 worker 里，2MB 输入不再阻塞主线程
+const fmtTask = useWorkerTask<{ text: string; fmt: Fmt; indent: Indent }, FormatOutput>(
+  () => new Worker(new URL('../workers/format.worker.ts', import.meta.url), { type: 'module' }),
+)
+const working = ref(false)
 const indent = ref<Indent>('2')
 const detected = ref<Fmt | null>(null)
 const output = ref('')
@@ -37,6 +47,12 @@ const errLines = computed(() => {
 })
 
 const inputLines = computed(() => input.value.split('\n'))
+
+// 高亮层会把整个输入复制成一层逐行 div，大输入时代价极高——
+// 只在真的有问题要标、且行数不大时才渲染（issue 点击定位走 textarea 选区，不依赖它）
+const showHl = computed(
+  () => (issues.value.length > 0 || fatal.value !== null) && inputLines.value.length <= LARGE_LINES,
+)
 
 // 片段高亮：把各问题的字符范围换算成 行号 → [起, 止) 列区间（0-based，已排序合并）
 const lineSegs = computed(() => {
@@ -93,17 +109,34 @@ function syncScroll() {
   if (el) hlScroll.value = { x: el.scrollLeft, y: el.scrollTop }
 }
 
-// 输入框随内容自动增高（min-height:100% 兜底），页面整体滚动，框内不出竖向滚动条
+// 输入框随内容自动增高（min-height:100% 兜底），页面整体滚动，框内不出竖向滚动条。
+// 测一次 scrollHeight 就是一次全量 reflow（2MB 内容约 140ms），超大内容改为防抖测量：
+// 打字期间不测，停顿后再校准高度
+let resizeTimer: ReturnType<typeof setTimeout> | undefined
+
+function measureHeight(el: HTMLTextAreaElement) {
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight + 2}px`
+}
+
 function autoresize() {
   const el = inputEl.value
   // 工具页用 v-show 切换，隐藏（display:none）状态下 scrollHeight 是 0，
   // 量出来会把高度锁死成 2px——跳过，等可见时由 ResizeObserver 补量
   if (!el || el.offsetParent === null) return
-  el.style.height = 'auto'
-  el.style.height = `${el.scrollHeight + 2}px`
+  clearTimeout(resizeTimer)
+  if (el.value.length > HUGE_TEXT_CHARS) {
+    resizeTimer = setTimeout(() => measureHeight(el), 250)
+  } else {
+    measureHeight(el)
+  }
 }
 
 watch(input, () => nextTick(autoresize))
+// 输入删空时 autoresize 先于输出清空执行（run 有防抖 + worker 往返），
+// 此刻右侧还被旧的超长结果撑着，min-height:100% 会把旧巨高原样量回来；
+// 结果落地后必须再补量一次，高度才能回落
+watch(output, () => nextTick(autoresize))
 // 挂载时可能处于隐藏页；元素从隐藏变可见（尺寸 0 → 实际值）时观察器会触发，补量高度
 let ro: ResizeObserver | undefined
 onMounted(() => {
@@ -113,7 +146,10 @@ onMounted(() => {
     ro.observe(inputEl.value)
   }
 })
-onUnmounted(() => ro?.disconnect())
+onUnmounted(() => {
+  ro?.disconnect()
+  clearTimeout(resizeTimer)
+})
 
 function jumpTo(line: number | null) {
   const el = inputEl.value
@@ -138,6 +174,8 @@ let runSeq = 0
 watch(
   [input, indent],
   () => {
+    // 从输入变化起就亮提示，覆盖防抖等待 + worker 计算全程
+    working.value = input.value.trim() !== ''
     clearTimeout(timer)
     timer = setTimeout(run, 250)
   },
@@ -154,6 +192,7 @@ async function run() {
     fatal.value = null
     unknown.value = false
     detected.value = null
+    working.value = false
     return
   }
   const fmt = detectFormat(text)
@@ -163,13 +202,15 @@ async function run() {
     fatal.value = null
     issues.value = []
     output.value = ('')
+    working.value = false
     return
   }
   unknown.value = false
   // 压缩模式对 YAML/SQL/Java 无意义，静默按 2 空格处理
   const ind = indent.value === 'min' && !supportsMinify(fmt) ? '2' : indent.value
-  const res = await formatText(text, fmt, ind)
-  if (seq !== runSeq) return // 期间输入又变了，丢弃过期结果
+  const res = await fmtTask.run({ text, fmt, indent: ind })
+  if (!res || seq !== runSeq) return // 期间输入又变了，丢弃过期结果
+  working.value = false
   if (res.fatal) {
     fatal.value = res.fatal
     issues.value = []
@@ -267,10 +308,15 @@ async function copy() {
 
     <div class="panes">
       <div class="pane">
-        <label class="pane-label micro-label" for="fmt-input">{{ t('fmtInput') }}</label>
+        <div class="pane-head">
+          <label class="pane-label micro-label" for="fmt-input">{{ t('fmtInput') }}</label>
+          <span v-if="drop.error.value" class="drop-err micro-label">
+            ⚠ {{ t(drop.error.value) }}
+          </span>
+        </div>
         <div class="input-wrap">
           <!-- 高亮层：与 textarea 同字体同排版，只画错误行的底色，文字透明 -->
-          <div class="hl-layer" aria-hidden="true">
+          <div v-if="showHl" class="hl-layer" aria-hidden="true">
             <div
               class="hl-content"
               :style="{ transform: `translate(${-hlScroll.x}px, ${-hlScroll.y}px)` }"
@@ -293,7 +339,11 @@ async function copy() {
             v-model="input"
             :placeholder="t('fmtPlaceholder')"
             spellcheck="false"
+            :class="{ dropping: drop.dragging.value }"
             @scroll="syncScroll"
+            @dragover="drop.onDragover"
+            @dragleave="drop.onDragleave"
+            @drop="drop.onDrop"
           ></textarea>
         </div>
       </div>
@@ -303,7 +353,15 @@ async function copy() {
           <label class="pane-label micro-label">{{ t('fmtOutput') }}</label>
         </div>
 
-        <div v-if="unknown" class="result hint">{{ t('fmtUnknown') }}</div>
+        <div class="out-body">
+        <!-- 处理中提示：钉在与空状态提示相同的位置（默认高度框的居中处），
+             盖在旧结果上而不卸载它，避免大内容反复重渲染 -->
+        <div v-if="working" class="working-top"><span>{{ t('fmtFormatting') }}</span></div>
+
+        <div v-if="unknown" class="result hint">
+          <!-- 处理中时藏住提示文字，两段文字在同一位置会叠在一起 -->
+          <div v-show="!working" class="hint-pin">{{ t('fmtUnknown') }}</div>
+        </div>
 
         <div v-else-if="fatal" class="result error-box">
           <div class="error-title">
@@ -339,8 +397,11 @@ async function copy() {
           </div>
           <!-- 只读折叠视图：带行号，可按缩进层级折叠；复制按钮始终复制完整结果 -->
           <FoldView v-if="output" :text="output" :fmt="detected" />
-          <div v-else class="result hint">{{ t('fmtEmptyHint') }}</div>
+          <div v-else class="result hint">
+            <div v-show="!working" class="hint-pin">{{ t('fmtEmptyHint') }}</div>
+          </div>
         </template>
+        </div>
       </div>
     </div>
   </section>
@@ -490,6 +551,52 @@ async function copy() {
   gap: 10px;
 }
 
+.drop-err {
+  margin-left: auto;
+  color: var(--del-fg);
+}
+
+/* 输出区包一层相对定位容器，处理中提示才能贴着输出框顶部盖上去 */
+.out-body {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* 与 .hint-pin 钉在同一位置：hint-pin 在 14px padding 之内，这里在 out-body
+   顶上，高度补上 28px 差值后两者的居中点重合 */
+.working-top {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  right: 1px;
+  height: min(100%, max(240px, calc(100vh - 259px)));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.working-top span {
+  padding: 6px 20px;
+  font-size: 15px;
+  color: var(--fg-muted);
+  background: color-mix(in srgb, var(--bg-panel) 85%, transparent);
+  animation: breathe 1s ease-in-out infinite alternate;
+}
+
+@keyframes breathe {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 textarea,
 .result {
   flex: 1;
@@ -584,6 +691,11 @@ textarea:focus {
   border-color: var(--border-strong);
 }
 
+textarea.dropping {
+  border-style: dashed;
+  border-color: var(--ink);
+}
+
 /* 容错修复清单：黄色系警示条，列表可滚动 */
 .issues {
   border: 1px solid var(--mod-gutter);
@@ -611,12 +723,21 @@ textarea:focus {
 }
 
 .hint {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   color: var(--fg-faint);
   font-family: inherit;
   font-size: 13px;
+}
+
+/* 提示文字钉在「默认高度输出框的垂直居中处」：
+   框被超长输入撑高时，文字不跟着往下跑到看不见的地方。
+   实测页面固定部分（头部+工具栏+标签+页脚+边距）共 259px，再扣掉框自身上下
+   padding 28px，默认框的内容高度恰为 100vh − 287px；框为默认高度时 min() 取
+   100%，与原先的整框居中完全一致 */
+.hint-pin {
+  height: min(100%, max(212px, calc(100vh - 287px)));
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .error-box {

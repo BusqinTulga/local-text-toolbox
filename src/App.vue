@@ -5,7 +5,8 @@ import DiffView from './components/DiffView.vue'
 import FormatTool from './components/FormatTool.vue'
 import Base64Tool from './components/Base64Tool.vue'
 import QrTool from './components/QrTool.vue'
-import { computeDiff, type DiffResult } from './lib/diffEngine'
+import type { DiffResult, Granularity } from './lib/diffEngine'
+import { useWorkerTask } from './lib/useWorkerTask'
 import { useI18n, type Lang } from './i18n'
 
 const { lang, setLang, t } = useI18n()
@@ -29,6 +30,10 @@ window.addEventListener('popstate', () => {
   tool.value = toolFromPath(location.pathname)
 })
 
+// 文件没拖准落在输入框之外时，阻止浏览器默认行为（直接打开文件、丢失已输入内容）
+window.addEventListener('dragover', (e) => e.preventDefault())
+window.addEventListener('drop', (e) => e.preventDefault())
+
 if (location.pathname !== TOOL_PATHS[tool.value]) {
   history.replaceState(null, '', TOOL_PATHS[tool.value])
 }
@@ -40,21 +45,35 @@ const view = ref<'side' | 'inline'>('side')
 
 const result = shallowRef<DiffResult | null>(null)
 
+// diff 跑在 worker 里：2MB 级输入的 Myers diff 要算数秒，主线程不能碰
+const diffTask = useWorkerTask<
+  { oldText: string; newText: string; granularity: Granularity },
+  DiffResult
+>(() => new Worker(new URL('./workers/diff.worker.ts', import.meta.url), { type: 'module' }))
+const computing = ref(false)
+
 let timer: ReturnType<typeof setTimeout> | undefined
 watch(
   [oldText, newText, mode],
   () => {
     clearTimeout(timer)
-    timer = setTimeout(() => {
-      if (oldText.value === '' && newText.value === '') {
-        result.value = null
-        return
+    if (oldText.value === '' && newText.value === '') {
+      computing.value = false
+      result.value = null
+      return
+    }
+    // 从输入变化起就亮提示，覆盖防抖等待 + 计算全程
+    computing.value = true
+    timer = setTimeout(async () => {
+      const r = await diffTask.run({
+        oldText: oldText.value,
+        newText: newText.value,
+        granularity: mode.value === 'text' ? 'word' : 'char',
+      })
+      if (r) {
+        result.value = r
+        computing.value = false
       }
-      result.value = computeDiff(
-        oldText.value,
-        newText.value,
-        mode.value === 'text' ? 'word' : 'char',
-      )
     }, 300)
   },
   { immediate: true },
@@ -127,6 +146,7 @@ const langs: { value: Lang; label: string }[] = [
           </div>
         </div>
         <TextInputs v-model:old-text="oldText" v-model:new-text="newText" />
+        <div v-if="computing" class="computing">{{ t('diffComputing') }}</div>
         <DiffView :result="result" :view="view" :code-mode="mode === 'code'" />
       </div>
       <FormatTool v-show="tool === 'fmt'" />
@@ -378,6 +398,24 @@ main {
   .lang {
     justify-self: start;
     justify-content: flex-start;
+  }
+}
+
+/* 上下不留 padding，还各收回一点 tool-page 的 16px gap，提示行尽量贴紧上下内容 */
+.computing {
+  text-align: center;
+  font-size: 15px;
+  margin: -6px 0;
+  color: var(--fg-muted);
+  animation: breathe 1s ease-in-out infinite alternate;
+}
+
+@keyframes breathe {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
   }
 }
 </style>
