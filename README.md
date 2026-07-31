@@ -2,7 +2,7 @@
 
 [中文](#中文) | [English](#english) | [日本語](#日本語)
 
-A small, privacy-first browser toolbox for everyday text work — diffing, formatting, and Base64 encoding. Everything runs client-side; nothing you paste is ever sent to a server.
+A small, privacy-first browser toolbox for everyday text work — diffing, formatting, Base64 encoding, and QR code generation. Everything runs client-side; nothing you paste is ever sent to a server.
 
 ---
 
@@ -10,7 +10,7 @@ A small, privacy-first browser toolbox for everyday text work — diffing, forma
 
 ### 项目简介
 
-本地文本工具箱是一套跑在浏览器里的日常文本小工具集合——文本对照、格式化、Base64。没有后端服务，粘贴的内容不会离开你的浏览器。
+本地文本工具箱是一套跑在浏览器里的日常文本小工具集合——文本对照、格式化、Base64、二维码。没有后端服务，粘贴的内容不会离开你的浏览器。
 
 ### 功能
 
@@ -36,10 +36,10 @@ A small, privacy-first browser toolbox for everyday text work — diffing, forma
 **多语言界面**
 - 支持中文 / English / 日本語 共3种语言。
 - 首次打开时会根据浏览器语言自动选择，之后可随时手动切换（选择会保存在本地）。
-- 每个工具的标签页都会同步到 URL 路径（`/diff`、`/format`、`/base64`），方便加书签或分享链接。
+- 每个工具的标签页都会同步到 URL 路径（`/diff`、`/format`、`/base64`、`/qr`），方便加书签或分享链接。
 
 **隐私**
-- 所有处理（对照、格式化、编码）都在浏览器端的 JavaScript 里完成，内容不会上传到任何服务器。
+- 所有处理（对照、格式化、编码、二维码生成）都在浏览器端的 JavaScript 里完成，内容不会上传到任何服务器。
 
 ### 快速开始
 
@@ -86,7 +86,7 @@ src/
 
 ### Overview
 
-Local Text Toolbox is a small collection of everyday text utilities — diff, format, Base64 — that run entirely in the browser. Nothing you paste is ever sent to a server; there is no backend at all.
+Local Text Toolbox is a small collection of everyday text utilities — diff, format, Base64, QR code — that run entirely in the browser. Nothing you paste is ever sent to a server; there is no backend at all.
 
 ### Features
 
@@ -112,10 +112,10 @@ Local Text Toolbox is a small collection of everyday text utilities — diff, fo
 **Multilingual UI**
 - Three languages: 中文 / English / 日本語.
 - Auto-detected from the browser on first visit, switchable any time afterward (the choice is remembered locally).
-- Each tool's tab is kept in sync with the URL path (`/diff`, `/format`, `/base64`), so links are bookmarkable and shareable.
+- Each tool's tab is kept in sync with the URL path (`/diff`, `/format`, `/base64`, `/qr`), so links are bookmarkable and shareable.
 
 **Privacy**
-- All processing (diffing, formatting, encoding) happens client-side in JavaScript. Nothing is uploaded anywhere.
+- All processing (diffing, formatting, encoding, QR generation) happens client-side in JavaScript. Nothing is uploaded anywhere.
 
 ### Getting Started
 
@@ -162,7 +162,7 @@ src/
 
 ### 概要
 
-コピペしたテキストの比較・整形・エンコードなど、日常的なテキスト作業をブラウザだけで完結させるための小さなツール集です。サーバーへの通信は一切行わず、入力した内容は常に手元のブラウザ内にとどまります。
+コピペしたテキストの比較・整形・エンコード・QRコード生成など、日常的なテキスト作業をブラウザだけで完結させるための小さなツール集です。サーバーへの通信は一切行わず、入力した内容は常に手元のブラウザ内にとどまります。
 
 ### 機能
 
@@ -188,10 +188,10 @@ src/
 **多言語 UI**
 - 中文 / English / 日本語 の3言語に対応。
 - 初回アクセス時はブラウザの言語設定から自動判定し、以降はいつでも手動で切り替え可能（選択内容はローカルに保存されます）。
-- 各ツールのタブは URL パス（`/diff`, `/format`, `/base64`）と同期しているため、ブックマークや共有リンクとしても機能します。
+- 各ツールのタブは URL パス（`/diff`, `/format`, `/base64`, `/qr`）と同期しているため、ブックマークや共有リンクとしても機能します。
 
 **プライバシー**
-- すべての処理（比較・整形・エンコード）はブラウザ内の JavaScript で完結します。入力内容が外部サーバーに送信されることはありません。
+- すべての処理（比較・整形・エンコード・QRコード生成）はブラウザ内の JavaScript で完結します。入力内容が外部サーバーに送信されることはありません。
 
 ### はじめかた
 

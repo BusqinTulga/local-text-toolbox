@@ -187,7 +187,7 @@ async function run() {
   copied.value = false
   const text = input.value
   if (text.trim() === '') {
-    output.value = ('')
+    output.value = ''
     issues.value = []
     fatal.value = null
     unknown.value = false
@@ -201,12 +201,12 @@ async function run() {
     unknown.value = true
     fatal.value = null
     issues.value = []
-    output.value = ('')
+    output.value = ''
     working.value = false
     return
   }
   unknown.value = false
-  // 压缩模式对 YAML/SQL/Java 无意义，静默按 2 空格处理
+  // 压缩模式对 YAML 无意义，静默按 2 空格处理
   const ind = indent.value === 'min' && !supportsMinify(fmt) ? '2' : indent.value
   const res = await fmtTask.run({ text, fmt, indent: ind })
   if (!res || seq !== runSeq) return // 期间输入又变了，丢弃过期结果
@@ -214,11 +214,11 @@ async function run() {
   if (res.fatal) {
     fatal.value = res.fatal
     issues.value = []
-    output.value = ('')
+    output.value = ''
   } else {
     fatal.value = null
     issues.value = res.issues
-    output.value = (res.output)
+    output.value = res.output
   }
 }
 

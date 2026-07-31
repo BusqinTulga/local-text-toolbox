@@ -13,8 +13,6 @@
   --fg-faint: #a3a3a3;
   --border: #e2e2e0;
   --border-strong: #111111;
-  --accent: #111111;
-  --accent-soft: #ececea;
 
   --add-bg: #e9f6ec;
   --add-hl: #b3e6c0;
@@ -47,8 +45,6 @@
     --fg-faint: #5c5c5c;
     --border: #262626;
     --border-strong: #f2f2f0;
-    --accent: #f2f2f0;
-    --accent-soft: #222222;
 
     --add-bg: #12261a;
     --add-hl: #1f5c33;

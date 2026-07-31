@@ -359,7 +359,7 @@ class Parser {
       // 光一个 - / + / . ，当垃圾跳过
       this.i++
       this.issue('issSkipped', start)
-      return NaN as never
+      return NaN
     }
     this.i += m[0].length
     const num = Number(m[0])
