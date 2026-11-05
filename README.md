@@ -1,8 +1,30 @@
-# 本地文本工具箱 / Local Text Toolbox / ローカルテキストツールボックス
+<div align="center">
 
-[中文](#中文) | [English](#english) | [日本語](#日本語)
+<img src="./public/favicon.svg" alt="Local Text Toolbox logo" width="88" height="88" />
 
-A small, privacy-first browser toolbox for everyday text work — diffing, formatting, Base64 encoding, and QR code generation. Everything runs client-side; nothing you paste is ever sent to a server.
+# Local Text Toolbox
+
+### 文本留在本地，工具触手可及。
+
+文本对照、格式化、Base64、二维码，一处搞定。<br />
+所有文本处理都在浏览器内完成，输入内容无需上传。
+
+**[打开工具箱 ↗](https://local-text-toolbox.busqintulga.com)**　·　[快速开始](#快速开始)　·　[反馈问题](https://github.com/BusqinTulga/local-text-toolbox/issues)
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-111111?style=flat-square)](./LICENSE)
+[![Vue 3](https://img.shields.io/badge/Vue-3-111111?style=flat-square&logo=vuedotjs&logoColor=white)](https://vuejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-111111?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Local processing](https://img.shields.io/badge/Processing-100%25_Local-111111?style=flat-square)](#中文)
+
+[中文](#中文)　/　[English](#english)　/　[日本語](#日本語)
+
+<br />
+
+<img src="./.github/images/readme/banner.svg" alt="Local Text Toolbox — 文本留在本地；支持文本对照、JSON / XML / YAML 格式化、Base64 和二维码生成。右侧展示文本差异示意。" width="100%" />
+
+<sub>A small toolbox for everyday text work. Everything runs in your browser.</sub>
+
+</div>
 
 ---
 
