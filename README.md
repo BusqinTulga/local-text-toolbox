@@ -11,10 +11,10 @@
 
 **[打开工具箱 ↗](https://local-text-toolbox.busqintulga.com)**　·　[快速开始](#快速开始)　·　[反馈问题](https://github.com/BusqinTulga/local-text-toolbox/issues)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-111111?style=flat-square)](./LICENSE)
-[![Vue 3](https://img.shields.io/badge/Vue-3-111111?style=flat-square&logo=vuedotjs&logoColor=white)](https://vuejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-111111?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Local processing](https://img.shields.io/badge/Processing-100%25_Local-111111?style=flat-square)](#中文)
+[![License: MIT](https://img.shields.io/badge/License-MIT-6b7280?style=flat-square)](./LICENSE)
+[![Vue 3](https://img.shields.io/badge/Vue-3-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white)](https://vuejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Local processing](https://img.shields.io/badge/Processing-100%25_Local-2ea44f?style=flat-square)](#中文)
 
 [中文](#中文)　/　[English](#english)　/　[日本語](#日本語)
 
